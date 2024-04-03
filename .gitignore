@@ -10,3 +10,4 @@ wheels/
 # venv
 .venv
 requirements.txt
+.DS_Store
