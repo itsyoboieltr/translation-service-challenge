@@ -1,0 +1,23 @@
+services:
+  app:
+    image: translation-service:latest
+    restart: always
+    build: .
+    depends_on:
+      - db
+    ports:
+      - 8000:8000
+
+  db:
+    image: mongo:7.0
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - data:/data/db
+      - config:/data/configdb
+
+volumes:
+  data:
+  config:
