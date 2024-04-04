@@ -11,3 +11,4 @@ wheels/
 .venv
 requirements.txt
 .DS_Store
+.env
