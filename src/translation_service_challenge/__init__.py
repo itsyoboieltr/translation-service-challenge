@@ -20,9 +20,17 @@ class Definition(TypedDict):
     synonyms: list[str]
 
 
+class Details(TypedDict):
+    """Type that represents the details of a word."""
+
+    definitions: list[Definition]
+    examples: list[str]
+    translations: list[str]
+
+
 @app.get("/details")
 async def get_details(text: str, sl: str = "auto", tl: str = "es"):
-    """Root endpoint for the FastAPI app."""
+    """Get the details of a word."""
     translation = translator.translate(text, tl, sl)
 
     if isinstance(translation, list):
@@ -39,8 +47,9 @@ async def get_details(text: str, sl: str = "auto", tl: str = "es"):
 
     metadata = translation.extra_data["parsed"]
 
+    details: Details = {"definitions": [], "examples": [], "translations": []}
+
     # Parse the definitions
-    definitions: list[Definition] = []
     definition_blocks = metadata[3][1][0]
     for definition_block in definition_blocks:
         for definition_parts in definition_block[1]:
@@ -53,25 +62,19 @@ async def get_details(text: str, sl: str = "auto", tl: str = "es"):
             except IndexError:
                 synonyms = []
             definition["synonyms"] = synonyms
-            definitions.append(definition)
+            details["definitions"].append(definition)
 
     # Parse the examples
-    examples: list[str] = []
     example_blocks = metadata[3][2][0]
     for example_block in example_blocks:
         # Examples can contain HTML tags that we do not want to store, so we remove them
         example = re.sub(HTML_CLEANER_REGEX, "", example_block[1])
-        examples.append(example)
+        details["examples"].append(example)
 
     # Parse the translations
-    translations: list[str] = []
     translation_blocks = metadata[3][5][0]
     for translation_block in translation_blocks:
         for translation_parts in translation_block[1]:
-            translations.append(translation_parts[0])
+            details["translations"].append(translation_parts[0])
 
-    return {
-        "definitions": definitions,
-        "examples": examples,
-        "translations": translations,
-    }
+    return details
