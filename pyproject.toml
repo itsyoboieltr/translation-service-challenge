@@ -8,7 +8,10 @@ authors = [
 dependencies = [
     "fastapi>=0.110.1",
     "uvicorn[standard]>=0.29.0",
-    "googletrans>=4.0.0-rc1"
+    "googletrans>=4.0.0-rc1",
+    "pymongo[srv]>=4.6.3",
+    "motor>=3.4.0",
+    "pydantic-settings>=2.2.1",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -33,3 +36,6 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/translation_service_challenge"]
+
+[tool.pylint.messages_control]
+disable = ["import-error", "unused-argument", "redefined-builtin"]

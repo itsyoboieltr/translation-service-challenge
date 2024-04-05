@@ -18,6 +18,8 @@ chardet==3.0.4
     # via httpx
 click==8.1.7
     # via uvicorn
+dnspython==2.6.1
+    # via pymongo
 fastapi==0.110.1
 googletrans==4.0.0rc1
 h11==0.9.0
@@ -40,14 +42,20 @@ hyperframe==5.2.0
 idna==2.10
     # via anyio
     # via httpx
+motor==3.4.0
 mypy==1.9.0
 mypy-extensions==1.0.0
     # via mypy
 pydantic==2.6.4
     # via fastapi
+    # via pydantic-settings
 pydantic-core==2.16.3
     # via pydantic
+pydantic-settings==2.2.1
+pymongo==4.6.3
+    # via motor
 python-dotenv==1.0.1
+    # via pydantic-settings
     # via uvicorn
 pyyaml==6.0.1
     # via uvicorn
