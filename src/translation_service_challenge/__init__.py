@@ -12,14 +12,17 @@ from .db import (
     details_collection,
     mongo_client,
 )
-from .utils import parse_translation_metadata, translator
+from .utils import parse_translation_metadata, parse_translations, translate_text
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Context manager that creates an unique index and tears down the database connection."""
-    # Startup logic that creates a unique index on 'original_text'
-    await details_collection.create_index("original_text", unique=True)
+    # Startup logic that creates a unique index on 'text' and 'source_language'
+    await details_collection.create_index(
+        [("text", 1), ("source_language", 1)],
+        unique=True,
+    )
     yield
     # Shutdown logic that closes the database connection
     mongo_client.close()
@@ -40,8 +43,8 @@ app = FastAPI(
 )
 async def get_details(
     text: str,
-    sl: str = Query("auto", description="Source language"),
-    tl: str = Query("es", description="Target language"),
+    source_language: str = "en",
+    target_language: str = "es",
 ):
     """
     Get the details of a text.
@@ -57,35 +60,41 @@ async def get_details(
     """
 
     # Check if the details are already stored in the database
-    stored_details = await details_collection.find_one({"original_text": text})
+    stored_details = await details_collection.find_one(
+        {
+            "text": text,
+            "source_language": source_language,
+        }
+    )
 
-    # If the details are stored in the database, return them directly
+    # If the details are stored in the database
     if stored_details:
-        return Details(**stored_details)
+        details = Details(**stored_details)
+
+        # If the target language is not in the stored translations, fetch the translation
+        if details.translations.get(target_language, None) is None:
+            translation_metadata = translate_text(
+                text, source_language, target_language
+            )
+            translation = parse_translations(translation_metadata, target_language)
+            details.translations[target_language] = translation[target_language]
+
+            # Update the stored details with the new translation
+            await details_collection.update_one(
+                {"_id": ObjectId(details.id)},
+                {"$set": {"translations": details.translations}},
+            )
+
+        # Return the stored details
+        return details
 
     # If the details are not stored in the database, fetch them from the Google Translate API
-    try:
-        translation = translator.translate(text, tl, sl)
-    except Exception as e:
-        raise HTTPException(
-            status_code=502,
-            detail="Unable to fetch translation from Google Translate API.",
-        ) from e
-
-    if isinstance(translation, list):
-        raise HTTPException(
-            status_code=502,
-            detail="Translation value is invalid! Expected a single translation, received a list.",
-        )
-
-    if not translation.extra_data:
-        raise HTTPException(
-            status_code=502,
-            detail="Translation does not have extra data! Unable to parse.",
-        )
+    translation_metadata = translate_text(text, source_language, target_language)
 
     # Parse the translation metadata
-    details = parse_translation_metadata(text, translation.extra_data["parsed"])
+    details = parse_translation_metadata(
+        text, source_language, target_language, translation_metadata
+    )
 
     # Store the details in the database
     inserted_details = await details_collection.insert_one(details.model_dump())
@@ -102,11 +111,12 @@ async def list_details(
         1, ge=1, alias="page", description="Page number, starting from 1"
     ),
     limit: int = Query(10, ge=1, alias="limit", description="Number of items per page"),
-    sort: str = Query("original_text", description="Field name to sort by"),
+    sort: str = Query("text", description="Field name to sort by"),
     order: str = Query(
         "asc", description="Sort order: 'asc' for ascending, 'desc' for descending"
     ),
-    text_filter: Optional[str] = None,
+    text: Optional[str] = None,
+    source_language: Optional[str] = None,
     definitions: bool = Query(False, description="Include definitions in the response"),
     synonyms: bool = Query(False, description="Include synonyms in the response"),
     examples: bool = Query(True, description="Include examples in the response"),
@@ -129,23 +139,32 @@ async def list_details(
             status_code=400, detail="Order must be either 'asc' or 'desc'"
         )
 
-    # Building the query for filtering with case-insensitive partial match
-    query = {}
-    if text_filter:
-        query["original_text"] = {
-            "$regex": text_filter,
+    # Building the query for filtering
+    query: dict = {}
+    # Text filtering with case-insensitive partial match
+    if text:
+        query["text"] = {
+            "$regex": text,
             "$options": "i",
         }
+    # Exact match filtering for source language
+    if source_language:
+        query["source_language"] = source_language
 
-    # Specifying fields to include in the database response
-    projection = {"_id": 1, "original_text": 1}
+    # Specifying fields to include in  the database response
+    projection = {
+        "_id": 1,
+        "text": 1,
+        "source_language": 1,
+    }
 
     # Specifying fields that need to be included to remove default fields from the Model
     include: dict[str, dict] = {
         "details": {
             "__all__": {
                 "id": {},
-                "original_text": {},
+                "text": {},
+                "source_language": {},
             }
         }
     }

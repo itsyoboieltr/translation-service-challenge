@@ -21,20 +21,21 @@ ObjectIdStr = Annotated[str, BeforeValidator(str)]
 
 
 class Definition(BaseModel):
-    """Model that represents a definition of a word."""
+    """Model that represents a definition of a text."""
 
     text: str
     synonyms: list[str] = []
 
 
 class Details(BaseModel):
-    """Model that represents the details of a word."""
+    """Model that represents the details of a text."""
 
     id: Optional[ObjectIdStr] = Field(alias="_id", default=None)
-    original_text: str
+    text: str
+    source_language: str
     definitions: list[Definition] = []
     examples: list[str] = []
-    translations: list[str] = []
+    translations: dict[str, list[str]] = {}
 
 
 class DetailsCollection(BaseModel):
